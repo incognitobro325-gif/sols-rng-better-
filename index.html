@@ -6,7 +6,7 @@
     <style>
         :root { --aura-color: #fff; --bg-effect: transparent; }
         body { 
-            background: #000; color: white; font-family: 'Segoe UI', sans-serif; 
+            background: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             margin: 0; height: 100vh; overflow: hidden;
             display: flex; flex-direction: column; align-items: center;
         }
@@ -15,6 +15,22 @@
         #effect-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-effect); opacity: 0.4; transition: 1s; z-index: -1;
+        }
+
+        /* CUTSCENE OVERLAY */
+        #cutscene {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #000; z-index: 100; display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: none;
+        }
+        #cutscene-flash {
+            position: absolute; width: 100%; height: 100%; background: white;
+            opacity: 0; z-index: 101;
+        }
+        #cutscene-name {
+            font-size: 8rem; font-weight: 900; text-transform: uppercase;
+            z-index: 102; transform: scale(0.5); opacity: 0;
         }
 
         /* AURA VIEWPORT */
@@ -31,18 +47,16 @@
 
         /* UI PANELS */
         .top-stats { position: absolute; top: 20px; left: 20px; font-family: monospace; font-size: 1.2rem; }
-        
         #inventory {
             position: absolute; left: 20px; top: 100px; width: 180px; 
             background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px;
             max-height: 50vh; overflow-y: auto;
         }
 
-        /* BOTTOM CONTROL BAR */
         #bottom-bar {
             width: 100%; height: 120px; background: #111; 
             border-top: 2px solid #333; display: flex; 
-            justify-content: center; align-items: center; gap: 20px;
+            justify-content: center; align-items: center; gap: 20px; z-index: 10;
         }
 
         button {
@@ -50,14 +64,33 @@
             color: white; cursor: pointer; font-weight: bold; border-radius: 4px;
         }
         button:hover { background: #333; border-color: #fff; }
-        button:disabled { opacity: 0.3; cursor: not-allowed; }
 
         /* ANIMATIONS */
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        .celestial-anim { animation: pulse 0.5s infinite; }
+        @keyframes reveal {
+            0% { transform: scale(0.2); opacity: 0; filter: blur(20px); }
+            50% { transform: scale(1.1); opacity: 1; filter: blur(0px); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes flash {
+            0% { opacity: 1; } 100% { opacity: 0; }
+        }
+        @keyframes shake {
+            0% { transform: translate(0,0); }
+            25% { transform: translate(5px, 5px); }
+            50% { transform: translate(-5px, -5px); }
+            75% { transform: translate(5px, -5px); }
+            100% { transform: translate(0,0); }
+        }
+        .shake-anim { animation: shake 0.1s infinite; }
+        .celestial-anim { animation: shake 0.2s infinite alternate; }
     </style>
 </head>
 <body>
+
+    <div id="cutscene">
+        <div id="cutscene-flash"></div>
+        <div id="cutscene-name">LEGENDARY</div>
+    </div>
 
     <div id="effect-layer"></div>
 
@@ -77,7 +110,7 @@
     </div>
 
     <div id="bottom-bar">
-        <button onclick="roll()">ROLL</button>
+        <button id="btn-roll" onclick="roll()">ROLL</button>
         <button id="btn-auto" onclick="toggleAuto()">AUTO: OFF</button>
         <button onclick="craftLuck()">UPGRADE LUCK (100 Rolls)</button>
     </div>
@@ -86,19 +119,21 @@
         let rolls = 0;
         let luck = 1;
         let autoOn = false;
+        let isRolling = false;
         let inventory = new Set(["Common"]);
 
         const data = {
-            "Common": { color: "#888", bg: "transparent", chance: 2 },
-            "Uncommon": { color: "#4caf50", bg: "radial-gradient(circle, #4caf5022 0%, transparent 70%)", chance: 5 },
-            "Rare": { color: "#2196f3", bg: "linear-gradient(45deg, #000 30%, #2196f344 100%)", chance: 20 },
-            "Epic": { color: "#9c27b0", bg: "repeating-linear-gradient(45deg, #000, #9c27b022 100px)", chance: 100 },
-            "Legendary": { color: "#ffeb3b", bg: "radial-gradient(circle, #ffeb3b44 10%, #000 80%)", chance: 1000 },
-            "Mythic": { color: "#ff5722", bg: "conic-gradient(#ff572222, #000, #ff572222)", chance: 10000 },
-            "Celestial": { color: "#00ffff", bg: "url('https://www.transparenttextures.com'), radial-gradient(circle, #00ffff44, #000)", chance: 100000 }
+            "Common": { color: "#888", bg: "transparent", chance: 2, cutscene: false },
+            "Uncommon": { color: "#4caf50", bg: "radial-gradient(circle, #4caf5022 0%, transparent 70%)", chance: 5, cutscene: false },
+            "Rare": { color: "#2196f3", bg: "linear-gradient(45deg, #000 30%, #2196f344 100%)", chance: 20, cutscene: false },
+            "Epic": { color: "#9c27b0", bg: "repeating-linear-gradient(45deg, #000, #9c27b022 100px)", chance: 100, cutscene: false },
+            "Legendary": { color: "#ffeb3b", bg: "radial-gradient(circle, #ffeb3b44 10%, #000 80%)", chance: 1000, cutscene: true },
+            "Mythic": { color: "#ff5722", bg: "conic-gradient(#ff572222, #000, #ff572222)", chance: 10000, cutscene: true },
+            "Celestial": { color: "#00ffff", bg: "radial-gradient(circle, #00ffff44, #000)", chance: 100000, cutscene: true }
         };
 
         function roll() {
+            if (isRolling) return;
             rolls++;
             document.getElementById('stat-rolls').innerText = rolls;
 
@@ -113,13 +148,51 @@
                 }
             }
 
-            if (!inventory.has(rolledAura)) {
-                inventory.add(rolledAura);
+            if (data[rolledAura].cutscene) {
+                triggerCutscene(rolledAura);
+            } else {
+                displayRoll(rolledAura);
+            }
+        }
+
+        function triggerCutscene(name) {
+            isRolling = true;
+            const cs = document.getElementById('cutscene');
+            const flash = document.getElementById('cutscene-flash');
+            const txt = document.getElementById('cutscene-name');
+            
+            // Setup Cutscene
+            cs.style.display = 'flex';
+            txt.innerText = name;
+            txt.style.color = data[name].color;
+            txt.style.textShadow = `0 0 40px ${data[name].color}`;
+            
+            // Animation Sequence
+            setTimeout(() => {
+                flash.style.animation = "flash 0.5s forwards";
+                txt.style.animation = "reveal 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
+                document.body.classList.add('shake-anim');
+            }, 100);
+
+            // End Cutscene
+            setTimeout(() => {
+                cs.style.display = 'none';
+                flash.style.animation = "";
+                txt.style.animation = "";
+                document.body.classList.remove('shake-anim');
+                isRolling = false;
+                displayRoll(name);
+            }, 3000);
+        }
+
+        function displayRoll(name) {
+            if (!inventory.has(name)) {
+                inventory.add(name);
                 updateInventory();
             }
-
-            // Temp highlight for the roll
-            document.getElementById('aura-rarity').innerText = `You rolled: ${rolledAura} (1/${data[rolledAura].chance})`;
+            document.getElementById('aura-rarity').innerText = `You rolled: ${name} (1/${data[name].chance})`;
+            // Auto-equip if it's high tier
+            if(data[name].chance >= 1000) equip(name);
         }
 
         function equip(name) {
@@ -141,17 +214,17 @@
                 btn.innerText = item;
                 btn.style.width = "100%";
                 btn.style.marginBottom = "5px";
-                btn.style.fontSize = "0.8rem";
                 btn.style.color = data[item].color;
                 btn.onclick = () => equip(item);
                 list.appendChild(btn);
             });
         }
 
+        let autoInterval;
         function toggleAuto() {
             autoOn = !autoOn;
             document.getElementById('btn-auto').innerText = `AUTO: ${autoOn ? "ON" : "OFF"}`;
-            if(autoOn) autoInterval = setInterval(roll, 800);
+            if(autoOn) autoInterval = setInterval(() => { if(!isRolling) roll(); }, 800);
             else clearInterval(autoInterval);
         }
 
@@ -164,7 +237,6 @@
             }
         }
 
-        // Initialize
         updateInventory();
         equip("Common");
     </script>
