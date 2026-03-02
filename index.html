@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SOL'S RNG: WEB EDITION</title>
+    <style>
+        :root { --aura-color: #fff; --bg-effect: transparent; }
+        body { 
+            background: #000; color: white; font-family: 'Segoe UI', sans-serif; 
+            margin: 0; height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* DYNAMIC BACKGROUND EFFECTS */
+        #effect-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-effect); opacity: 0.4; transition: 1s; z-index: -1;
+        }
+
+        /* AURA VIEWPORT */
+        #viewport {
+            flex: 1; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; width: 100%;
+        }
+        #aura-name {
+            font-size: 5rem; font-weight: 900; text-transform: uppercase;
+            color: var(--aura-color); text-shadow: 0 0 20px var(--aura-color);
+            transition: 0.3s;
+        }
+        #aura-rarity { font-size: 1.5rem; opacity: 0.7; margin-top: 10px; }
+
+        /* UI PANELS */
+        .top-stats { position: absolute; top: 20px; left: 20px; font-family: monospace; font-size: 1.2rem; }
+        
+        #inventory {
+            position: absolute; left: 20px; top: 100px; width: 180px; 
+            background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px;
+            max-height: 50vh; overflow-y: auto;
+        }
+
+        /* BOTTOM CONTROL BAR */
+        #bottom-bar {
+            width: 100%; height: 120px; background: #111; 
+            border-top: 2px solid #333; display: flex; 
+            justify-content: center; align-items: center; gap: 20px;
+        }
+
+        button {
+            padding: 15px 25px; border: 1px solid #555; background: #222;
+            color: white; cursor: pointer; font-weight: bold; border-radius: 4px;
+        }
+        button:hover { background: #333; border-color: #fff; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* ANIMATIONS */
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .celestial-anim { animation: pulse 0.5s infinite; }
+    </style>
+</head>
+<body>
+
+    <div id="effect-layer"></div>
+
+    <div class="top-stats">
+        ROLLS: <span id="stat-rolls">0</span><br>
+        LUCK: <span id="stat-luck">1.0</span>x
+    </div>
+
+    <div id="inventory">
+        <b>STORAGE</b><hr>
+        <div id="inv-list"></div>
+    </div>
+
+    <div id="viewport">
+        <div id="aura-name">NONE</div>
+        <div id="aura-rarity">Roll to find an aura</div>
+    </div>
+
+    <div id="bottom-bar">
+        <button onclick="roll()">ROLL</button>
+        <button id="btn-auto" onclick="toggleAuto()">AUTO: OFF</button>
+        <button onclick="craftLuck()">UPGRADE LUCK (100 Rolls)</button>
+    </div>
+
+    <script>
+        let rolls = 0;
+        let luck = 1;
+        let autoOn = false;
+        let inventory = new Set(["Common"]);
+
+        const data = {
+            "Common": { color: "#888", bg: "transparent", chance: 2 },
+            "Uncommon": { color: "#4caf50", bg: "radial-gradient(circle, #4caf5022 0%, transparent 70%)", chance: 5 },
+            "Rare": { color: "#2196f3", bg: "linear-gradient(45deg, #000 30%, #2196f344 100%)", chance: 20 },
+            "Epic": { color: "#9c27b0", bg: "repeating-linear-gradient(45deg, #000, #9c27b022 100px)", chance: 100 },
+            "Legendary": { color: "#ffeb3b", bg: "radial-gradient(circle, #ffeb3b44 10%, #000 80%)", chance: 1000 },
+            "Mythic": { color: "#ff5722", bg: "conic-gradient(#ff572222, #000, #ff572222)", chance: 10000 },
+            "Celestial": { color: "#00ffff", bg: "url('https://www.transparenttextures.com'), radial-gradient(circle, #00ffff44, #000)", chance: 100000 }
+        };
+
+        function roll() {
+            rolls++;
+            document.getElementById('stat-rolls').innerText = rolls;
+
+            let rolledAura = "Common";
+            const keys = Object.keys(data).reverse();
+            
+            for (let key of keys) {
+                let realChance = data[key].chance / luck;
+                if (Math.random() < (1 / realChance)) {
+                    rolledAura = key;
+                    break;
+                }
+            }
+
+            if (!inventory.has(rolledAura)) {
+                inventory.add(rolledAura);
+                updateInventory();
+            }
+
+            // Temp highlight for the roll
+            document.getElementById('aura-rarity').innerText = `You rolled: ${rolledAura} (1/${data[rolledAura].chance})`;
+        }
+
+        function equip(name) {
+            const aura = data[name];
+            const nameEl = document.getElementById('aura-name');
+            nameEl.innerText = name;
+            nameEl.className = name === "Celestial" ? "celestial-anim" : "";
+            
+            document.documentElement.style.setProperty('--aura-color', aura.color);
+            document.documentElement.style.setProperty('--bg-effect', aura.bg);
+            document.getElementById('aura-rarity').innerText = `Equipped: 1/${aura.chance}`;
+        }
+
+        function updateInventory() {
+            const list = document.getElementById('inv-list');
+            list.innerHTML = "";
+            inventory.forEach(item => {
+                const btn = document.createElement('button');
+                btn.innerText = item;
+                btn.style.width = "100%";
+                btn.style.marginBottom = "5px";
+                btn.style.fontSize = "0.8rem";
+                btn.style.color = data[item].color;
+                btn.onclick = () => equip(item);
+                list.appendChild(btn);
+            });
+        }
+
+        function toggleAuto() {
+            autoOn = !autoOn;
+            document.getElementById('btn-auto').innerText = `AUTO: ${autoOn ? "ON" : "OFF"}`;
+            if(autoOn) autoInterval = setInterval(roll, 800);
+            else clearInterval(autoInterval);
+        }
+
+        function craftLuck() {
+            if (rolls >= 100) {
+                rolls -= 100;
+                luck += 0.2;
+                document.getElementById('stat-rolls').innerText = rolls;
+                document.getElementById('stat-luck').innerText = luck.toFixed(1);
+            }
+        }
+
+        // Initialize
+        updateInventory();
+        equip("Common");
+    </script>
+</body>
+</html>
