@@ -2,55 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SOL'S RNG: WEB EDITION</title>
+    <title>SOL'S RNG: SAVED EDITION</title>
     <style>
         :root { --aura-color: #fff; --bg-effect: transparent; }
         body { 
-            background: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #000; color: white; font-family: 'Segoe UI', sans-serif; 
             margin: 0; height: 100vh; overflow: hidden;
             display: flex; flex-direction: column; align-items: center;
         }
 
-        /* DYNAMIC BACKGROUND EFFECTS */
         #effect-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-effect); opacity: 0.4; transition: 1s; z-index: -1;
         }
 
-        /* CUTSCENE OVERLAY */
+        /* CUTSCENE */
         #cutscene {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: #000; z-index: 100; display: none;
             flex-direction: column; justify-content: center; align-items: center;
-            pointer-events: none;
         }
-        #cutscene-flash {
-            position: absolute; width: 100%; height: 100%; background: white;
-            opacity: 0; z-index: 101;
-        }
-        #cutscene-name {
-            font-size: 8rem; font-weight: 900; text-transform: uppercase;
-            z-index: 102; transform: scale(0.5); opacity: 0;
-        }
+        #cutscene-flash { position: absolute; width: 100%; height: 100%; background: white; opacity: 0; z-index: 101; }
+        #cutscene-name { font-size: 8rem; font-weight: 900; text-transform: uppercase; z-index: 102; opacity: 0; }
 
-        /* AURA VIEWPORT */
-        #viewport {
-            flex: 1; display: flex; flex-direction: column; 
-            justify-content: center; align-items: center; width: 100%;
-        }
-        #aura-name {
-            font-size: 5rem; font-weight: 900; text-transform: uppercase;
-            color: var(--aura-color); text-shadow: 0 0 20px var(--aura-color);
-            transition: 0.3s;
-        }
+        /* UI */
+        #viewport { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; }
+        #aura-name { font-size: 5rem; font-weight: 900; text-transform: uppercase; color: var(--aura-color); text-shadow: 0 0 20px var(--aura-color); transition: 0.3s; }
         #aura-rarity { font-size: 1.5rem; opacity: 0.7; margin-top: 10px; }
-
-        /* UI PANELS */
         .top-stats { position: absolute; top: 20px; left: 20px; font-family: monospace; font-size: 1.2rem; }
+        
         #inventory {
             position: absolute; left: 20px; top: 100px; width: 180px; 
             background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px;
-            max-height: 50vh; overflow-y: auto;
+            max-height: 50vh; overflow-y: auto; border: 1px solid #444;
         }
 
         #bottom-bar {
@@ -59,30 +43,14 @@
             justify-content: center; align-items: center; gap: 20px; z-index: 10;
         }
 
-        button {
-            padding: 15px 25px; border: 1px solid #555; background: #222;
-            color: white; cursor: pointer; font-weight: bold; border-radius: 4px;
-        }
+        button { padding: 15px 25px; border: 1px solid #555; background: #222; color: white; cursor: pointer; font-weight: bold; border-radius: 4px; }
         button:hover { background: #333; border-color: #fff; }
-
+        
         /* ANIMATIONS */
-        @keyframes reveal {
-            0% { transform: scale(0.2); opacity: 0; filter: blur(20px); }
-            50% { transform: scale(1.1); opacity: 1; filter: blur(0px); }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        @keyframes flash {
-            0% { opacity: 1; } 100% { opacity: 0; }
-        }
-        @keyframes shake {
-            0% { transform: translate(0,0); }
-            25% { transform: translate(5px, 5px); }
-            50% { transform: translate(-5px, -5px); }
-            75% { transform: translate(5px, -5px); }
-            100% { transform: translate(0,0); }
-        }
-        .shake-anim { animation: shake 0.1s infinite; }
-        .celestial-anim { animation: shake 0.2s infinite alternate; }
+        @keyframes reveal { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+        .shake { animation: shakeAnim 0.1s infinite; }
+        @keyframes shakeAnim { 0% { transform: translate(2px, 2px); } 50% { transform: translate(-2px, -2px); } 100% { transform: translate(0,0); } }
     </style>
 </head>
 <body>
@@ -93,7 +61,6 @@
     </div>
 
     <div id="effect-layer"></div>
-
     <div class="top-stats">
         ROLLS: <span id="stat-rolls">0</span><br>
         LUCK: <span id="stat-luck">1.0</span>x
@@ -110,17 +77,19 @@
     </div>
 
     <div id="bottom-bar">
-        <button id="btn-roll" onclick="roll()">ROLL</button>
+        <button onclick="roll()">ROLL</button>
         <button id="btn-auto" onclick="toggleAuto()">AUTO: OFF</button>
         <button onclick="craftLuck()">UPGRADE LUCK (100 Rolls)</button>
+        <button onclick="resetGame()" style="background: #400;">RESET SAVE</button>
     </div>
 
     <script>
+        // Game State
         let rolls = 0;
-        let luck = 1;
-        let autoOn = false;
+        let luck = 1.0;
+        let inventory = ["Common"];
         let isRolling = false;
-        let inventory = new Set(["Common"]);
+        let autoOn = false;
 
         const data = {
             "Common": { color: "#888", bg: "transparent", chance: 2, cutscene: false },
@@ -132,6 +101,38 @@
             "Celestial": { color: "#00ffff", bg: "radial-gradient(circle, #00ffff44, #000)", chance: 100000, cutscene: true }
         };
 
+        // --- LOCAL STORAGE LOGIC ---
+        function saveGame() {
+            const gameState = {
+                rolls: rolls,
+                luck: luck,
+                inventory: inventory
+            };
+            localStorage.setItem('solsRngSave', JSON.stringify(gameState));
+        }
+
+        function loadGame() {
+            const savedData = localStorage.getItem('solsRngSave');
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                rolls = parsed.rolls || 0;
+                luck = parsed.luck || 1.0;
+                inventory = parsed.inventory || ["Common"];
+                
+                document.getElementById('stat-rolls').innerText = rolls;
+                document.getElementById('stat-luck').innerText = luck.toFixed(1);
+                updateInventoryUI();
+            }
+        }
+
+        function resetGame() {
+            if(confirm("Are you sure? This deletes ALL your auras!")) {
+                localStorage.removeItem('solsRngSave');
+                location.reload();
+            }
+        }
+
+        // --- GAMEPLAY LOGIC ---
         function roll() {
             if (isRolling) return;
             rolls++;
@@ -139,20 +140,22 @@
 
             let rolledAura = "Common";
             const keys = Object.keys(data).reverse();
-            
             for (let key of keys) {
-                let realChance = data[key].chance / luck;
-                if (Math.random() < (1 / realChance)) {
+                if (Math.random() < (1 / (data[key].chance / luck))) {
                     rolledAura = key;
                     break;
                 }
             }
 
-            if (data[rolledAura].cutscene) {
-                triggerCutscene(rolledAura);
-            } else {
-                displayRoll(rolledAura);
+            if (!inventory.includes(rolledAura)) {
+                inventory.push(rolledAura);
+                updateInventoryUI();
             }
+
+            saveGame(); // Save after every roll
+
+            if (data[rolledAura].cutscene) triggerCutscene(rolledAura);
+            else displayRoll(rolledAura);
         }
 
         function triggerCutscene(name) {
@@ -161,37 +164,27 @@
             const flash = document.getElementById('cutscene-flash');
             const txt = document.getElementById('cutscene-name');
             
-            // Setup Cutscene
             cs.style.display = 'flex';
             txt.innerText = name;
             txt.style.color = data[name].color;
             txt.style.textShadow = `0 0 40px ${data[name].color}`;
             
-            // Animation Sequence
-            setTimeout(() => {
-                flash.style.animation = "flash 0.5s forwards";
-                txt.style.animation = "reveal 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
-                document.body.classList.add('shake-anim');
-            }, 100);
+            flash.style.animation = "flash 0.5s forwards";
+            txt.style.animation = "reveal 0.6s forwards";
+            document.body.classList.add('shake');
 
-            // End Cutscene
             setTimeout(() => {
                 cs.style.display = 'none';
                 flash.style.animation = "";
                 txt.style.animation = "";
-                document.body.classList.remove('shake-anim');
+                document.body.classList.remove('shake');
                 isRolling = false;
                 displayRoll(name);
-            }, 3000);
+            }, 2500);
         }
 
         function displayRoll(name) {
-            if (!inventory.has(name)) {
-                inventory.add(name);
-                updateInventory();
-            }
             document.getElementById('aura-rarity').innerText = `You rolled: ${name} (1/${data[name].chance})`;
-            // Auto-equip if it's high tier
             if(data[name].chance >= 1000) equip(name);
         }
 
@@ -199,14 +192,11 @@
             const aura = data[name];
             const nameEl = document.getElementById('aura-name');
             nameEl.innerText = name;
-            nameEl.className = name === "Celestial" ? "celestial-anim" : "";
-            
             document.documentElement.style.setProperty('--aura-color', aura.color);
             document.documentElement.style.setProperty('--bg-effect', aura.bg);
-            document.getElementById('aura-rarity').innerText = `Equipped: 1/${aura.chance}`;
         }
 
-        function updateInventory() {
+        function updateInventoryUI() {
             const list = document.getElementById('inv-list');
             list.innerHTML = "";
             inventory.forEach(item => {
@@ -220,7 +210,6 @@
             });
         }
 
-        let autoInterval;
         function toggleAuto() {
             autoOn = !autoOn;
             document.getElementById('btn-auto').innerText = `AUTO: ${autoOn ? "ON" : "OFF"}`;
@@ -234,10 +223,12 @@
                 luck += 0.2;
                 document.getElementById('stat-rolls').innerText = rolls;
                 document.getElementById('stat-luck').innerText = luck.toFixed(1);
+                saveGame();
             }
         }
 
-        updateInventory();
+        // Init
+        loadGame();
         equip("Common");
     </script>
 </body>
