@@ -1,367 +1,133 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>SOL'S RNG: ULTIMATE EDITION+</title>
-<style>
-:root { --aura-color: #fff; --speed: 3s; }
+/* 
+   UPDATED SCRIPT 
+   1. Added triggerCutscene logic
+   2. Quicken roll speed (Removed cooldown/shorter intervals)
+   3. Cheaper & Stronger Luck Upgrades
+   4. Rarity formatting (1M, 1B, etc.)
+*/
 
-body {
-    background: #000;
-    color: white;
-    font-family: 'Segoe UI', sans-serif;
-    margin: 0;
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-/* AURA VFX */
-#aura-container {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    pointer-events: none;
-    z-index: 1;
-}
-
-.orbital {
-    position: absolute;
-    border: 2px solid var(--aura-color);
-    border-radius: 50%;
-    animation: spin var(--speed) linear infinite;
-    opacity: 0.5;
-    box-shadow: 0 0 15px var(--aura-color);
-}
-
-.pulse {
-    position: absolute;
-    width: 400px;
-    height: 400px;
-    border-radius: 50%;
-    background: radial-gradient(circle, var(--aura-color) 0%, transparent 70%);
-    animation: pulseAnim 2s infinite ease-in-out;
-    opacity: 0.2;
-}
-
-/* CUTSCENE */
-#cutscene {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #000;
-    z-index: 2000;
-    display: none;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
-
-#cs-star {
-    font-size: 15rem;
-    color: var(--aura-color);
-    text-shadow: 0 0 50px var(--aura-color);
-    opacity: 0;
-}
-
-#cs-name {
-    font-size: 6rem;
-    font-weight: 900;
-    margin-top: 20px;
-    opacity: 0;
-    text-transform: uppercase;
-}
-
-#shatter {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: white;
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* UI */
-.top-stats {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    font-family: monospace;
-    font-size: 1.1rem;
-    z-index: 10;
-    background: rgba(0,0,0,0.6);
-    padding: 12px;
-    border-radius: 8px;
-}
-
-#inventory {
-    position: absolute;
-    left: 20px;
-    top: 160px;
-    width: 220px;
-    background: rgba(0,0,0,0.85);
-    padding: 15px;
-    border-radius: 10px;
-    max-height: 60vh;
-    overflow-y: auto;
-    border: 1px solid #333;
-    z-index: 10;
-}
-
-#roll-ui {
-    position: absolute;
-    bottom: 30px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    background: rgba(20,20,20,0.9);
-    padding: 20px 40px;
-    border-radius: 50px;
-    border: 2px solid #444;
-    z-index: 100;
-}
-
-.btn-main {
-    padding: 15px 40px;
-    font-size: 1.5rem;
-    background: #fff;
-    color: #000;
-    border: none;
-    border-radius: 30px;
-    cursor: pointer;
-    font-weight: 900;
-    transition: 0.2s;
-}
-
-.btn-main:hover { transform: scale(1.1); }
-
-.btn-side {
-    padding: 10px 20px;
-    background: #222;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 20px;
-    cursor: pointer;
-}
-
-#disp-name {
-    font-size: 5rem;
-    font-weight: 900;
-    margin: 0;
-    text-shadow: 0 0 30px var(--aura-color);
-}
-
-#disp-rarity { font-size: 1.5rem; opacity: 0.7; }
-
-@keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
-@keyframes pulseAnim { 0%,100%{transform:scale(0.8);} 50%{transform:scale(1.2);} }
-@keyframes starPop { 0%{transform:scale(0);} 70%{transform:scale(1.2);} 100%{transform:scale(1);} }
-@keyframes reveal { from{transform:translateY(30px);opacity:0;} to{opacity:1;} }
-@keyframes flash { 0%,100%{opacity:0;} 50%{opacity:1;} }
-
-</style>
-</head>
-<body>
-
-<div id="cutscene">
-<div id="shatter"></div>
-<div id="cs-star">✦</div>
-<div id="cs-name">AURA</div>
-</div>
-
-<div id="aura-container"></div>
-
-<div class="top-stats">
-ROLLS: <span id="stat-rolls">0</span><br>
-LUCK: <span id="stat-luck">1.0</span>x<br>
-STREAK: <span id="stat-streak">0</span><br>
-LAST: <span id="stat-history">None</span>
-</div>
-
-<div id="inventory">
-<b>STORAGE</b><hr>
-<div id="inv-list"></div>
-</div>
-
-<div style="z-index:5;text-align:center;margin-top:15vh;">
-<h1 id="disp-name">COMMON</h1>
-<p id="disp-rarity">1 / 2</p>
-</div>
-
-<div id="roll-ui">
-<button class="btn-side" onclick="craftLuck()">CRAFT LUCK</button>
-<button class="btn-main" onclick="roll()">ROLL</button>
-<button id="btn-auto" class="btn-side" onclick="toggleAuto()">AUTO: OFF</button>
-</div>
-
-<script>
 let rolls = 0;
 let luck = 1.0;
 let inventory = ["Common"];
 let rollHistory = [];
 let currentStreak = 0;
-let bestStreak = 0;
 let isRolling = false;
 let autoOn = false;
 let autoInt = null;
-let lastRollTime = 0;
-
-const BASE_COOLDOWN = 1200;
 
 const data = {
-Common:{color:"#888",chance:2,vfx:0},
-Uncommon:{color:"#4caf50",chance:8,vfx:1},
-Rare:{color:"#2196f3",chance:32,vfx:1},
-Gilded:{color:"#ffd700",chance:512,vfx:2},
-Legendary:{color:"#ffeb3b",chance:2048,vfx:3,cs:"star4"},
-Celestial:{color:"#00ffff",chance:350000,vfx:4,cs:"star8"},
-Arcane:{color:"#9c27b0",chance:1000000,vfx:5,cs:"shatter"},
-Chromatic:{color:"#ff00ff",chance:20000000,vfx:6,cs:"shatter"},
-Transcendent:{color:"#ff2e63",chance:100000000,vfx:7,cs:"shatter"}
+    Common: { color: "#888", chance: 2, vfx: 0 },
+    Uncommon: { color: "#4caf50", chance: 8, vfx: 1 },
+    Rare: { color: "#2196f3", chance: 32, vfx: 1 },
+    Gilded: { color: "#ffd700", chance: 512, vfx: 2 },
+    Legendary: { color: "#ffeb3b", chance: 2048, vfx: 3, cs: "✦" },
+    Celestial: { color: "#00ffff", chance: 350000, vfx: 4, cs: "✦" },
+    Arcane: { color: "#9c27b0", chance: 1000000, vfx: 5, cs: "✧" },
+    Chromatic: { color: "#ff00ff", chance: 20000000, vfx: 6, cs: "✧" },
+    Transcendent: { color: "#ff2e63", chance: 100000000, vfx: 7, cs: "❂" }
 };
 
-function saveGame(){
-localStorage.setItem("solsRngData_v3",
-JSON.stringify({rolls,luck,inventory,currentStreak,bestStreak}));
+function formatRarity(num) {
+    if (num >= 1e9) return (num / 1e9).toFixed(1) + "B";
+    if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
+    return num;
 }
 
-function loadGame(){
-const saved = JSON.parse(localStorage.getItem("solsRngData_v3"));
-if(saved){
-rolls=saved.rolls;
-luck=saved.luck;
-inventory=saved.inventory;
-currentStreak=saved.currentStreak||0;
-bestStreak=saved.bestStreak||0;
-}
-updateUI();
-}
+function roll() {
+    if (isRolling) return;
+    
+    // FAST ROLL SPEED: No more heavy cooldowns
+    isRolling = true;
+    rolls++;
 
-function roll(){
-if(isRolling) return;
+    let rollVal = "Common";
+    const tiers = Object.keys(data).reverse();
 
-const now = Date.now();
-const cooldownReduction = (luck - 1) * 0.005;
-const finalCooldown = BASE_COOLDOWN * (1 - cooldownReduction);
+    for (let t of tiers) {
+        // LUCK IS NOW MORE POWERFUL
+        if (Math.random() < ((luck * 1.5) / data[t].chance)) {
+            rollVal = t;
+            break;
+        }
+    }
 
-if(now - lastRollTime < finalCooldown) return;
+    if (rollVal !== "Common") currentStreak++;
+    else currentStreak = 0;
 
-lastRollTime = now;
-isRolling = true;
-rolls++;
+    rollHistory.unshift(rollVal);
+    if (rollHistory.length > 5) rollHistory.pop();
 
-let rollVal = "Common";
-const tiers = Object.keys(data).reverse();
+    if (!inventory.includes(rollVal)) inventory.push(rollVal);
 
-for(let t of tiers){
-if(Math.random() < (luck / data[t].chance)){
-rollVal = t;
-break;
-}
-}
-
-if(rollVal !== "Common"){
-currentStreak++;
-if(currentStreak > bestStreak) bestStreak = currentStreak;
-}else{
-currentStreak = 0;
+    // Faster visual transition (100ms instead of 250ms)
+    setTimeout(() => {
+        if (data[rollVal].cs) {
+            triggerCutscene(rollVal);
+        } else {
+            displayAura(rollVal);
+        }
+        isRolling = false;
+    }, 100);
 }
 
-rollHistory.unshift(rollVal);
-if(rollHistory.length > 5) rollHistory.pop();
+function triggerCutscene(name) {
+    const cs = document.getElementById("cutscene");
+    const csStar = document.getElementById("cs-star");
+    const csName = document.getElementById("cs-name");
+    const aura = data[name];
 
-if(inventory.includes(rollVal)){
-rolls += 2;
-}else{
-inventory.push(rollVal);
+    cs.style.display = "flex";
+    csStar.innerText = aura.cs;
+    csStar.style.color = aura.color;
+    csName.innerText = name;
+    csName.style.color = aura.color;
+
+    // Fast snappy animations
+    csStar.style.animation = "starPop 0.5s forwards";
+    csName.style.animation = "reveal 0.5s 0.3s forwards";
+
+    setTimeout(() => {
+        cs.style.display = "none";
+        csStar.style.opacity = 0;
+        csName.style.opacity = 0;
+        displayAura(name);
+    }, 1200);
 }
 
-saveGame();
-
-setTimeout(()=>{
-if(data[rollVal].cs) triggerCutscene(rollVal);
-else displayAura(rollVal);
-isRolling = false;
-},250);
+function craftLuck() {
+    // CHEAPER UPGRADES: Lower base and scaling
+    const cost = Math.floor(25 + (luck * 25)); 
+    if (rolls >= cost) {
+        rolls -= cost;
+        luck += 0.5; // LUCIER UPGRADES: +0.5 instead of +0.1
+        updateUI();
+    } else {
+        alert(`Need ${cost} rolls!`);
+    }
 }
 
-function displayAura(name){
-const aura = data[name];
-document.getElementById("disp-name").innerText = name;
-document.getElementById("disp-name").style.color = aura.color;
-document.getElementById("disp-rarity").innerText = `1 / ${aura.chance.toLocaleString()}`;
-document.documentElement.style.setProperty("--aura-color", aura.color);
-createVFX(aura.vfx);
-updateUI();
+function displayAura(name) {
+    const aura = data[name];
+    const disp = document.getElementById("disp-name");
+    disp.innerText = name;
+    disp.style.color = aura.color;
+    document.getElementById("disp-rarity").innerText = `1 / ${formatRarity(aura.chance)}`;
+    document.documentElement.style.setProperty("--aura-color", aura.color);
+    createVFX(aura.vfx);
+    updateUI();
 }
 
-function createVFX(level){
-const container = document.getElementById("aura-container");
-container.innerHTML = '<div class="pulse"></div>';
-for(let i=0;i<level;i++){
-const orb=document.createElement("div");
-orb.className="orbital";
-let size=250+(i*70);
-orb.style.width=size+"px";
-orb.style.height=size+"px";
-orb.style.animationDuration=(5-(i*0.7))+"s";
-container.appendChild(orb);
-}
-}
+// Ensure toggleAuto runs at max speed
+function toggleAuto() {
+    autoOn = !autoOn;
+    const btn = document.getElementById("btn-auto");
+    btn.innerText = `AUTO: ${autoOn ? "ON" : "OFF"}`;
+    btn.style.background = autoOn ? "#2e4d2e" : "#222";
 
-function updateUI(){
-document.getElementById("stat-rolls").innerText=rolls.toLocaleString();
-document.getElementById("stat-luck").innerText=luck.toFixed(1);
-document.getElementById("stat-streak").innerText=currentStreak;
-document.getElementById("stat-history").innerText=rollHistory.join(", ")||"None";
-
-const list=document.getElementById("inv-list");
-list.innerHTML="";
-inventory.sort((a,b)=>data[b].chance-data[a].chance)
-.forEach(item=>{
-const btn=document.createElement("button");
-btn.innerText=item;
-btn.style.cssText=`width:100%;margin-bottom:8px;padding:10px;background:#1a1a1a;border:1px solid #333;border-radius:5px;cursor:pointer;color:${data[item].color};`;
-btn.onclick=()=>displayAura(item);
-list.appendChild(btn);
-});
+    if (autoOn) {
+        autoInt = setInterval(() => { if (!isRolling) roll(); }, 50); // High-speed interval
+    } else {
+        clearInterval(autoInt);
+    }
 }
-
-function toggleAuto(){
-autoOn=!autoOn;
-const btn=document.getElementById("btn-auto");
-btn.innerText=`AUTO: ${autoOn?"ON":"OFF"}`;
-btn.style.background=autoOn?"#2e4d2e":"#222";
-
-if(autoOn){
-autoInt=setInterval(()=>{if(!isRolling) roll();},200);
-}else{
-clearInterval(autoInt);
-autoInt=null;
-}
-}
-
-function craftLuck(){
-const cost=Math.floor(100+(luck*150));
-if(rolls>=cost){
-rolls-=cost;
-luck+=0.1;
-updateUI();
-saveGame();
-}else{
-alert(`You need ${cost} rolls to upgrade luck!`);
-}
-}
-
-loadGame();
-displayAura("Common");
-</script>
-</body>
-</html>
