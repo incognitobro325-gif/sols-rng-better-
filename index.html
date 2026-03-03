@@ -1,113 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supercharged RNG Simulator</title>
-    <style>
-        :root { --aura-color: #888; }
-        body { margin: 0; background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-
-        /* Main Layout */
-        #game-container { display: flex; height: 100vh; }
-        #sidebar { width: 280px; background: #1a1a1a; padding: 20px; border-right: 2px solid #333; overflow-y: auto; }
-        #main-display { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-
-        /* Stats & Buttons */
-        .stat { font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; }
-        button { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        #btn-roll { background: #444; color: white; font-size: 1.5rem; }
-        #btn-auto { background: #222; color: #4caf50; border: 1px solid #4caf50; }
-        #btn-craft { background: #ffd700; color: #000; }
-
-        /* Display Area */
-        #aura-view { text-align: center; z-index: 10; }
-        #disp-name { font-size: 4rem; text-transform: uppercase; text-shadow: 0 0 20px var(--aura-color); margin: 0; }
-        #disp-rarity { font-size: 1.5rem; color: #aaa; margin-top: 10px; }
-
-        /* Cutscene Overlay */
-        #cutscene { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.95); display: none; /* Flex via JS */
-            flex-direction: column; align-items: center; justify-content: center; z-index: 100; 
-        }
-        #cs-star { font-size: 8rem; opacity: 0; }
-        #cs-name { font-size: 3rem; opacity: 0; margin-top: 20px; }
-
-        /* Animations */
-        @keyframes starPop {
-            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
-            70% { transform: scale(1.4) rotate(10deg); opacity: 1; }
-            100% { transform: scale(1) rotate(0deg); opacity: 1; }
-        }
-        @keyframes reveal {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* VFX Particles */
-        #vfx-container { position: absolute; width: 100%; height: 100%; pointer-events: none; }
-        .particle { position: absolute; background: var(--aura-color); border-radius: 50%; opacity: 0.6; }
-    </style>
-</head>
-<body>
-
 <div id="game-container">
     <div id="sidebar">
-        <h2>STATS</h2>
-        <div id="stat-rolls" class="stat">Rolls: 0</div>
-        <div id="stat-luck" class="stat">Luck: 1.0x</div>
+        <h2 style="color: #ffd700; border-bottom: 2px solid #333; padding-bottom: 10px;">RNG COSMOS</h2>
         
-        <button id="btn-roll" onclick="roll()">ROLL</button>
+        <div class="stat-box">
+            <div id="stat-rolls" class="stat">Rolls: 0</div>
+            <div id="stat-luck" class="stat">Luck: 1.0x</div>
+        </div>
+        
+        <button id="btn-roll" onclick="roll()">MANUAL ROLL</button>
         <button id="btn-auto" onclick="toggleAuto()">AUTO: OFF</button>
-        <button id="btn-craft" onclick="craftLuck()">UPGRADE LUCK</button>
 
-        <hr style="border:1px solid #333; margin:20px 0;">
-        <h3>INVENTORY</h3>
-        <div id="inventory-list" style="font-size: 0.9rem; line-height: 1.6;">Common</div>
+        <h3 style="margin-top:25px;">UPGRADES</h3>
+        <!-- Separated luck and speed upgrades -->
+        <button id="btn-luck" class="upgrade-btn" onclick="craftLuck()">
+            +0.5 Luck (Cost: 25)
+        </button>
+        <button id="btn-speed" class="upgrade-btn" style="background:#2196f3; color:white;" onclick="buySpeed()">
+            +1 Roll/Sec (Cost: 50)
+        </button>
+
+        <h3 style="margin-top:25px;">INVENTORY</h3>
+        <div id="inventory-list" class="inv-scroll">Common</div>
+        
+        <button onclick="resetGame()" style="margin-top:20px; background:#442222; font-size:0.7rem;">WIPE DATA</button>
     </div>
 
     <div id="main-display">
         <div id="vfx-container"></div>
         <div id="aura-view">
-            <h1 id="disp-name">Common</h1>
-            <div id="disp-rarity">1 / 2</div>
+            <h1 id="disp-name">READY?</h1>
+            <div id="disp-rarity">Click Roll to Start</div>
         </div>
     </div>
 </div>
 
-<!-- Cutscene Layer -->
-<div id="cutscene">
-    <div id="cs-star">✦</div>
-    <div id="cs-name">LEGENDARY</div>
-</div>
-
 <script>
-    // Paste your logic here. 
-    // Ensure you add the "updateUI()" function to keep the sidebar synced!
-    
-    function updateUI() {
-        document.getElementById("stat-rolls").innerText = `Rolls: ${rolls}`;
-        document.getElementById("stat-luck").innerText = `Luck: ${luck.toFixed(1)}x`;
-        document.getElementById("inventory-list").innerHTML = inventory.map(i => 
-            `<span style="color:${data[i].color}">${i}</span>`
-        ).join(", ");
-    }
+// --- CORE GAME DATA ---
+let rolls = 0;
+let luck = 1.0;
+let rollsPerSec = 0;
+let inventory = ["Common"];
+let isRolling = false;
+let autoOn = false;
+let autoInt = null;
 
-    function createVFX(count) {
-        const container = document.getElementById("vfx-container");
-        container.innerHTML = ""; // Clear old particles
-        for(let i=0; i<count * 5; i++) {
-            const p = document.createElement("div");
-            p.className = "particle";
-            const size = Math.random() * 5 + 2;
-            p.style.width = p.style.height = size + "px";
-            p.style.left = Math.random() * 100 + "%";
-            p.style.top = Math.random() * 100 + "%";
-            container.appendChild(p);
+const data = {
+    Common: { color: "#888", chance: 2, vfx: 0 },
+    Uncommon: { color: "#4caf50", chance: 8, vfx: 1 },
+    Rare: { color: "#2196f3", chance: 32, vfx: 3 },
+    Gilded: { color: "#ffd700", chance: 512, vfx: 8 },
+    Legendary: { color: "#ffeb3b", chance: 2048, vfx: 15, cs: "✦" },
+    Celestial: { color: "#00ffff", chance: 350000, vfx: 25, cs: "✦" },
+    Arcane: { color: "#9c27b0", chance: 1000000, vfx: 40, cs: "✧" },
+    Chromatic: { color: "#ff00ff", chance: 20000000, vfx: 60, cs: "✧" },
+    Transcendent: { color: "#ff2e63", chance: 100000000, vfx: 100, cs: "❂" }
+};
+
+// --- SYSTEM FUNCTIONS ---
+function formatRarity(num) {
+    if (num >= 1e9) return (num / 1e9).toFixed(1) + "B";
+    if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
+    if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
+    return num;
+}
+
+function updateUI() {
+    document.getElementById("stat-rolls").innerText = `Rolls: ${Math.floor(rolls)}`;
+    document.getElementById("stat-luck").innerText = `Luck: ${luck.toFixed(1)}x`;
+    
+    // Update button costs dynamically
+    const luckCost = Math.floor(25 + (luck * 25));
+    const speedCost = Math.floor(50 + (rollsPerSec * 75));
+    document.getElementById("btn-luck").innerText = `+0.5 Luck (Cost: ${luckCost})`;
+    document.getElementById("btn-speed").innerText = `+1 Roll/Sec (Cost: ${speedCost})`;
+
+    document.getElementById("inventory-list").innerHTML = inventory.map(i => 
+        `<div style="color:${data[i].color}; margin-bottom:4px;">1/${formatRarity(data[i].chance)} - ${i}</div>`
+    ).join("");
+    
+    saveGame(); // Silent save on every UI update
+}
+
+// --- GAMEPLAY MECHANICS ---
+function roll() {
+    if (isRolling) return;
+    isRolling = true;
+    rolls++;
+
+    let rollVal = "Common";
+    const tiers = Object.keys(data).reverse();
+    for (let t of tiers) {
+        if (Math.random() < ((luck * 1.5) / data[t].chance)) {
+            rollVal = t;
+            break;
         }
     }
-</script>
 
-</body>
-</html>
+    if (!inventory.includes(rollVal)) inventory.push(rollVal);
+
+    setTimeout(() => {
+        if (data[rollVal].cs) triggerCutscene(rollVal);
+        else displayAura(rollVal);
+        isRolling = false;
+    }, 50); 
+}
+
+function buySpeed() {
+    const cost = Math.floor(50 + (rollsPerSec * 75));
+    if (rolls >= cost) {
+        rolls -= cost;
+        rollsPerSec += 1;
+        updateUI();
+    }
+}
+
+// PASSIVE INCOME LOOP
+setInterval(() => {
+    if (rollsPerSec > 0) {
+        rolls += rollsPerSec / 10; // Adds portion every 100ms for smoothness
+        updateUI();
+    }
+}, 100);
+
+// --- PERSISTENCE ---
+function saveGame() {
+    const gameState = { rolls, luck, rollsPerSec, inventory };
+    localStorage.setItem("rng_cosmos_save", JSON.stringify(gameState));
+}
+
+function loadGame() {
+    const saved = localStorage.getItem("rng_cosmos_save");
+    if (saved) {
+        const state = JSON.parse(saved);
+        rolls = state.rolls || 0;
+        luck = state.luck || 1.0;
+        rollsPerSec = state.rollsPerSec || 0;
+        inventory = state.inventory || ["Common"];
+        updateUI();
+    }
+}
+
+function resetGame() {
+    if(confirm("Wipe all progress?")) {
+        localStorage.removeItem("rng_cosmos_save");
+        location.reload();
+    }
+}
+
+window.onload = loadGame;
+</script>
