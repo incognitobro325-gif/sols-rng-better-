@@ -1,133 +1,113 @@
-/* 
-   UPDATED SCRIPT 
-   1. Added triggerCutscene logic
-   2. Quicken roll speed (Removed cooldown/shorter intervals)
-   3. Cheaper & Stronger Luck Upgrades
-   4. Rarity formatting (1M, 1B, etc.)
-*/
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supercharged RNG Simulator</title>
+    <style>
+        :root { --aura-color: #888; }
+        body { margin: 0; background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
 
-let rolls = 0;
-let luck = 1.0;
-let inventory = ["Common"];
-let rollHistory = [];
-let currentStreak = 0;
-let isRolling = false;
-let autoOn = false;
-let autoInt = null;
+        /* Main Layout */
+        #game-container { display: flex; height: 100vh; }
+        #sidebar { width: 280px; background: #1a1a1a; padding: 20px; border-right: 2px solid #333; overflow-y: auto; }
+        #main-display { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
 
-const data = {
-    Common: { color: "#888", chance: 2, vfx: 0 },
-    Uncommon: { color: "#4caf50", chance: 8, vfx: 1 },
-    Rare: { color: "#2196f3", chance: 32, vfx: 1 },
-    Gilded: { color: "#ffd700", chance: 512, vfx: 2 },
-    Legendary: { color: "#ffeb3b", chance: 2048, vfx: 3, cs: "✦" },
-    Celestial: { color: "#00ffff", chance: 350000, vfx: 4, cs: "✦" },
-    Arcane: { color: "#9c27b0", chance: 1000000, vfx: 5, cs: "✧" },
-    Chromatic: { color: "#ff00ff", chance: 20000000, vfx: 6, cs: "✧" },
-    Transcendent: { color: "#ff2e63", chance: 100000000, vfx: 7, cs: "❂" }
-};
+        /* Stats & Buttons */
+        .stat { font-size: 1.2rem; margin-bottom: 10px; font-weight: bold; }
+        button { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        #btn-roll { background: #444; color: white; font-size: 1.5rem; }
+        #btn-auto { background: #222; color: #4caf50; border: 1px solid #4caf50; }
+        #btn-craft { background: #ffd700; color: #000; }
 
-function formatRarity(num) {
-    if (num >= 1e9) return (num / 1e9).toFixed(1) + "B";
-    if (num >= 1e6) return (num / 1e6).toFixed(1) + "M";
-    if (num >= 1e3) return (num / 1e3).toFixed(1) + "K";
-    return num;
-}
+        /* Display Area */
+        #aura-view { text-align: center; z-index: 10; }
+        #disp-name { font-size: 4rem; text-transform: uppercase; text-shadow: 0 0 20px var(--aura-color); margin: 0; }
+        #disp-rarity { font-size: 1.5rem; color: #aaa; margin-top: 10px; }
 
-function roll() {
-    if (isRolling) return;
+        /* Cutscene Overlay */
+        #cutscene { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); display: none; /* Flex via JS */
+            flex-direction: column; align-items: center; justify-content: center; z-index: 100; 
+        }
+        #cs-star { font-size: 8rem; opacity: 0; }
+        #cs-name { font-size: 3rem; opacity: 0; margin-top: 20px; }
+
+        /* Animations */
+        @keyframes starPop {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            70% { transform: scale(1.4) rotate(10deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        @keyframes reveal {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* VFX Particles */
+        #vfx-container { position: absolute; width: 100%; height: 100%; pointer-events: none; }
+        .particle { position: absolute; background: var(--aura-color); border-radius: 50%; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="sidebar">
+        <h2>STATS</h2>
+        <div id="stat-rolls" class="stat">Rolls: 0</div>
+        <div id="stat-luck" class="stat">Luck: 1.0x</div>
+        
+        <button id="btn-roll" onclick="roll()">ROLL</button>
+        <button id="btn-auto" onclick="toggleAuto()">AUTO: OFF</button>
+        <button id="btn-craft" onclick="craftLuck()">UPGRADE LUCK</button>
+
+        <hr style="border:1px solid #333; margin:20px 0;">
+        <h3>INVENTORY</h3>
+        <div id="inventory-list" style="font-size: 0.9rem; line-height: 1.6;">Common</div>
+    </div>
+
+    <div id="main-display">
+        <div id="vfx-container"></div>
+        <div id="aura-view">
+            <h1 id="disp-name">Common</h1>
+            <div id="disp-rarity">1 / 2</div>
+        </div>
+    </div>
+</div>
+
+<!-- Cutscene Layer -->
+<div id="cutscene">
+    <div id="cs-star">✦</div>
+    <div id="cs-name">LEGENDARY</div>
+</div>
+
+<script>
+    // Paste your logic here. 
+    // Ensure you add the "updateUI()" function to keep the sidebar synced!
     
-    // FAST ROLL SPEED: No more heavy cooldowns
-    isRolling = true;
-    rolls++;
+    function updateUI() {
+        document.getElementById("stat-rolls").innerText = `Rolls: ${rolls}`;
+        document.getElementById("stat-luck").innerText = `Luck: ${luck.toFixed(1)}x`;
+        document.getElementById("inventory-list").innerHTML = inventory.map(i => 
+            `<span style="color:${data[i].color}">${i}</span>`
+        ).join(", ");
+    }
 
-    let rollVal = "Common";
-    const tiers = Object.keys(data).reverse();
-
-    for (let t of tiers) {
-        // LUCK IS NOW MORE POWERFUL
-        if (Math.random() < ((luck * 1.5) / data[t].chance)) {
-            rollVal = t;
-            break;
+    function createVFX(count) {
+        const container = document.getElementById("vfx-container");
+        container.innerHTML = ""; // Clear old particles
+        for(let i=0; i<count * 5; i++) {
+            const p = document.createElement("div");
+            p.className = "particle";
+            const size = Math.random() * 5 + 2;
+            p.style.width = p.style.height = size + "px";
+            p.style.left = Math.random() * 100 + "%";
+            p.style.top = Math.random() * 100 + "%";
+            container.appendChild(p);
         }
     }
+</script>
 
-    if (rollVal !== "Common") currentStreak++;
-    else currentStreak = 0;
-
-    rollHistory.unshift(rollVal);
-    if (rollHistory.length > 5) rollHistory.pop();
-
-    if (!inventory.includes(rollVal)) inventory.push(rollVal);
-
-    // Faster visual transition (100ms instead of 250ms)
-    setTimeout(() => {
-        if (data[rollVal].cs) {
-            triggerCutscene(rollVal);
-        } else {
-            displayAura(rollVal);
-        }
-        isRolling = false;
-    }, 100);
-}
-
-function triggerCutscene(name) {
-    const cs = document.getElementById("cutscene");
-    const csStar = document.getElementById("cs-star");
-    const csName = document.getElementById("cs-name");
-    const aura = data[name];
-
-    cs.style.display = "flex";
-    csStar.innerText = aura.cs;
-    csStar.style.color = aura.color;
-    csName.innerText = name;
-    csName.style.color = aura.color;
-
-    // Fast snappy animations
-    csStar.style.animation = "starPop 0.5s forwards";
-    csName.style.animation = "reveal 0.5s 0.3s forwards";
-
-    setTimeout(() => {
-        cs.style.display = "none";
-        csStar.style.opacity = 0;
-        csName.style.opacity = 0;
-        displayAura(name);
-    }, 1200);
-}
-
-function craftLuck() {
-    // CHEAPER UPGRADES: Lower base and scaling
-    const cost = Math.floor(25 + (luck * 25)); 
-    if (rolls >= cost) {
-        rolls -= cost;
-        luck += 0.5; // LUCIER UPGRADES: +0.5 instead of +0.1
-        updateUI();
-    } else {
-        alert(`Need ${cost} rolls!`);
-    }
-}
-
-function displayAura(name) {
-    const aura = data[name];
-    const disp = document.getElementById("disp-name");
-    disp.innerText = name;
-    disp.style.color = aura.color;
-    document.getElementById("disp-rarity").innerText = `1 / ${formatRarity(aura.chance)}`;
-    document.documentElement.style.setProperty("--aura-color", aura.color);
-    createVFX(aura.vfx);
-    updateUI();
-}
-
-// Ensure toggleAuto runs at max speed
-function toggleAuto() {
-    autoOn = !autoOn;
-    const btn = document.getElementById("btn-auto");
-    btn.innerText = `AUTO: ${autoOn ? "ON" : "OFF"}`;
-    btn.style.background = autoOn ? "#2e4d2e" : "#222";
-
-    if (autoOn) {
-        autoInt = setInterval(() => { if (!isRolling) roll(); }, 50); // High-speed interval
-    } else {
-        clearInterval(autoInt);
-    }
-}
+</body>
+</html>
